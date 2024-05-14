@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { View, Image, FlatList, TouchableOpacity, StyleSheet }from 'react-native';
+import { View, Image, FlatList, TouchableOpacity, StyleSheet, Text, SafeAreaView }from 'react-native';
 import { getDownloadURL, ref, uploadBytesResumable} from 'firebase/storage';
 import {storage, firebd} from '../Firebase';
 import { collection, onSnapshot } from 'firebase/firestore';
+import * as ImagePicker from "expo-image-picker";
 
 export default function Home (){
 
@@ -10,7 +11,7 @@ export default function Home (){
     const [file, siteFile] = useState('');
 
     useEffect(() => {
-        const unsubscribe = onSnapshot(collection(firebd, 'files'), (snapshot)=>{
+        const unsubscribe = onSnapshot(collection(firebd, 'fotosLegais'), (snapshot)=>{
             snapshot.docChanges().forEach((change) => {
                 if(change.type === "added"){
                     siteFile((prevfiles) => [...prevfiles, change.doc.data()]);
@@ -24,23 +25,25 @@ export default function Home (){
 async function uploadImage(uri, fileType){
     const response = await fetch(uri);
     const blob = await response.blob();
-    const storageRef = ref(storage, '');
+    const storageRef = ref(storage, new Date().toISOString());
     const uploadTask = uploadBytesResumable(storageRef, blob);
 
     uploadTask.on(
         "state_changed",
-        () => {
-            getDownloadURL(uploadTask.snapshot.ref).then(async (downloadURL) => {
+        (error) => {
+            console.error(error);
+        },
+
+        async() => {
+                const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
                 await saveRecord(fileType, downloadURL, new Date().toISOString());
                 setImg('');
             });
-        }
-    )
-}
+        };
 
 async function saveRecord(fileType, url, createAt){
     try{
-        const docRef = await addDoc(collection,(firebd,'files'),{
+        const docRef = await addDoc(collection,(firebd,'fotosLegais'),{
             fileType,
             url,
             createAt
@@ -51,19 +54,35 @@ async function saveRecord(fileType, url, createAt){
     }
 }
 
+
+async function pickImage(){
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.All,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 1,
+    });
+
+    if (!result.canceled) {
+        const { uri } = result.assets[0];
+      setImg(uri);
+      await uploadImage(uri, "image")
+    }
+  };
+
 return (
-    <View>
-        <Text> Mis fotos </Text>
+    <View style={style.container}>
+        <Text style={style.title}> Mis fotos </Text>
 
         <FlatList 
         data={file}
         keyExtractor={(item) => item.url}
         renderItem={({item}) => {
-            if(item.fileType === "img"){
+            if(item.fileType === "image"){
                 return(
                     <Image 
                     source={{uri:item.url}}
-                    style={estilo.fotos}
+                    style={style.fotos}
                     />
                 )
             }
@@ -72,16 +91,27 @@ return (
         }
 
         numColumns={2}
+        
         />
+
+        <TouchableOpacity
+        onPress={pickImage}
+        style={style.imgpick}
+        >
+            
+            <Text> Images </Text>
+        </TouchableOpacity>
+
     </View>
 )
 
 
-}
+};
 
-const estilo = StyleSheet.create({
+const style = StyleSheet.create({
 
     container: {
+        paddingVertical: 20,
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center'
@@ -89,8 +119,18 @@ const estilo = StyleSheet.create({
 
     fotos: {
         width: 200,
-        height: 100
+        height: 200
     },
 
+    title:{
+        fontSize: 35
+    },
+
+    imgpick:{
+        position: "absolute",
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderRadius: 20
+    },
 
 });
