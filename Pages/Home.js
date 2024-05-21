@@ -1,20 +1,20 @@
 import { useEffect, useState } from 'react';
 import { View, Image, FlatList, TouchableOpacity, StyleSheet, Text, SafeAreaView }from 'react-native';
 import { getDownloadURL, ref, uploadBytesResumable} from 'firebase/storage';
-import {storage, firebd} from '../Firebase';
-import { collection, onSnapshot } from 'firebase/firestore';
+import {storage, fire} from '../Firebase';
+import { addDoc, collection, onSnapshot } from 'firebase/firestore';
 import * as ImagePicker from "expo-image-picker";
 
 export default function Home (){
 
-    const [img, setImg] = useState('');
-    const [file, siteFile] = useState('');
+    const [img, setImg] = useState("");
+    const [file, setFile] = useState([]);
 
     useEffect(() => {
-        const unsubscribe = onSnapshot(collection(firebd, 'fotosLegais'), (snapshot)=>{
+        const unsubscribe = onSnapshot(collection(fire, "fotosLegais"), (snapshot)=>{
             snapshot.docChanges().forEach((change) => {
                 if(change.type === "added"){
-                    siteFile((prevfiles) => [...prevfiles, change.doc.data()]);
+                    setFile((prevfiles) => [...prevfiles, change.doc.data()]);
                 }
             });
         });
@@ -30,6 +30,7 @@ async function uploadImage(uri, fileType){
 
     uploadTask.on(
         "state_changed",
+        null,
         (error) => {
             console.error(error);
         },
@@ -37,16 +38,16 @@ async function uploadImage(uri, fileType){
         async() => {
                 const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
                 await saveRecord(fileType, downloadURL, new Date().toISOString());
-                setImg('');
+                setImg("");
             });
         };
 
-async function saveRecord(fileType, url, createAt){
+async function saveRecord(fileType, url, createdAt){
     try{
-        const docRef = await addDoc(collection,(firebd,'fotosLegais'),{
+        const docRef = await addDoc(collection(fire,"fotosLegais"),{
             fileType,
             url,
-            createAt
+            createdAt
         })
     }
     catch(e){
@@ -63,10 +64,10 @@ async function pickImage(){
       quality: 1,
     });
 
+    console.log(result);
     if (!result.canceled) {
-        const { uri } = result.assets[0];
-      setImg(uri);
-      await uploadImage(uri, "image")
+        setImg(result.assets[0].uri);
+      await uploadImage(result.assets[0].uri, "img")
     }
   };
 
@@ -78,7 +79,7 @@ return (
         data={file}
         keyExtractor={(item) => item.url}
         renderItem={({item}) => {
-            if(item.fileType === "image"){
+            if(item.fileType === "img"){
                 return(
                     <Image 
                     source={{uri:item.url}}
